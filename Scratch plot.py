@@ -10,6 +10,7 @@ import locale
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_bootstrap_components as dbc
 
 
 language = locale.getdefaultlocale()
@@ -129,32 +130,35 @@ mapfig.update_layout(
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-app.layout = html.Div(
-	children=[
-	html.Div(children=[
-						html.H1(children='Time Tracker'),
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app.layout = dbc.Container(
+	[
+	dbc.Row([
+						dbc.Col(html.H1(children='Time Tracker')),
 
-						html.Div(children='''
+						dbc.Col(html.Div(children='''
 				Welcome to your time tracker dashboard.
-        ''')
+        '''))
 	])
 	,
 
-html.Div(children=[
-	html.Div([dcc.Graph(
+dbc.Row([
+	dbc.Col(dcc.Graph(
 		id='Time pie',
-		figure=piefig)], className='six columns'),
-	html.Div([dcc.Graph(
+		figure=piefig), width=6, align="center"),
+
+	dbc.Col(dcc.Graph(
 		id='Time bar',
-		figure=barfig)
-], className='six columns'
-	)
-	], className="row"),
-html.Div(children=[
-	html.Div([dcc.Graph(
+		figure=barfig), width=6, align="center")
+]
+
+	),
+
+dbc.Row([
+	dbc.Col([dcc.Graph(
 		id='Map',
-		figure=mapfig
+		figure=mapfig,
+style={"height": 1200}
 	)]),
 
 	])

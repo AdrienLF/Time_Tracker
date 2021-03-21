@@ -6,14 +6,20 @@ from pprint import pprint
 import plotly.graph_objects as go
 import humanize
 import locale
-
+import calendar
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
+import plotly.express as px
+import pandas as pd
+import numpy as np
+import Calendar_heatmap
 
 language = locale.getdefaultlocale()
+
+locale.setlocale(locale.LC_ALL, language[0])
 humanize.activate(language[0])
 # GET AND FORMAT DATA
 data = []
@@ -32,6 +38,7 @@ for i, (v, w) in enumerate(zip(data[:-1], data[1:])):
 
 # print("Data : ", data)
 
+pprint(data)
 #GET ACTIVITIES
 
 activities = []
@@ -105,7 +112,86 @@ humanized_duration_for_graph = [humanize.naturaldelta(v.total_seconds()) for x, 
 print("humanized_duration_for_graph : ", humanized_duration_for_graph)
 
 
+# MAKE SLEEP DATA
 
+sleep_data = []
+
+for datapoint in data:
+	if datapoint["Activity"] == "Dormir":
+		date = arrow.get(datapoint["time"]).date()
+		sleep_data.append({"date":date, "duration":datapoint["duration"]})
+
+print("Sleep data", sleep_data)
+
+for i, (v, w) in enumerate(zip(sleep_data[:-1], sleep_data[1:])): # Additionne les deux qui tombent à la même date
+	if v["date"] == w["date"]:
+		v["duration"] = w["duration"] + v["duration"]
+		sleep_data.remove(w)
+
+print("Cleaned Sleep data", sleep_data)
+
+weekly_sleep = []
+
+for datapoint in sleep_data:
+	weekday = calendar.day_name[arrow.get(datapoint["date"]).weekday()]
+	duration_in_hours = datapoint["duration"].seconds//3600
+	weekly_sleep.append({"weekday": weekday, "duration": duration_in_hours})
+
+for i, (v, w) in enumerate(zip(weekly_sleep[:-1], weekly_sleep[1:])): # Additionne les deux qui tombent à la même date
+	if v["weekday"] == w["weekday"]:
+		v["duration"] = w["duration"] + v["duration"]
+		sleep_data.remove(w)
+
+print("Weekly sleep", weekly_sleep)
+
+
+sleep_duration_weekly = []
+
+for days in weekly_sleep:
+	duration = days["duration"]
+	sleep_duration_weekly.append(duration)
+
+weekly_sleep = pd.DataFrame(weekly_sleep)
+
+
+
+sleep_year_list = []
+for datapoint in sleep_data:
+	year = datapoint["date"].year
+	sleep_year_list.append(year)
+
+sleep_year_list= list(set(sleep_year_list))
+
+def make_year_sleep_calendar(year_arg):
+	full_sleep_calendar = []
+	full_sleep_calendar_dataframe = pd.DataFrame(full_sleep_calendar)
+	for year in sleep_year_list:
+		year_dataframe = pd.DataFrame([])
+		start = datetime.datetime(year, 1, 1)
+		end = datetime.datetime(year, 12, 31)
+
+		if calendar.isleap(year):
+			sleep_calendar = np.full((366,), fill_value=np.inf)
+		else:
+			sleep_calendar = np.full((365,),  fill_value=np.inf)
+
+		for datapoint in sleep_data:
+			for i, days in enumerate(pd.date_range(start, end)):
+
+				if datapoint["date"] == days:
+					np.put(sleep_calendar, i, int(datapoint["duration"].seconds))
+				else:
+					if sleep_calendar[i] == np.inf:
+						np.put(sleep_calendar, i, 0)
+		year_dataframe[year] = sleep_calendar
+
+		full_sleep_calendar_dataframe = pd.concat([full_sleep_calendar_dataframe, year_dataframe], axis=1)
+
+	year_sleep_calendar = full_sleep_calendar_dataframe[year_arg]
+
+	return year_sleep_calendar, full_sleep_calendar_dataframe
+
+sleep_calendar, full_sleep_calendar_dataframe = make_year_sleep_calendar(datetime.datetime.now().year)
 #GRAPHING
 
 piefig = go.Figure(data=[go.Pie(labels=activity_for_graph, values=duration_for_graph, text= humanized_duration_for_graph, hole=.3, texttemplate ="%{label}: %{text} <br>(%{percent})", hovertemplate="%{label}: %{text} <br>(%{percent})")])
@@ -113,7 +199,14 @@ piefig = go.Figure(data=[go.Pie(labels=activity_for_graph, values=duration_for_g
 
 barfig = go.Figure(data=[go.Bar(y=activity_for_graph, x=duration_for_graph, text= humanized_duration_for_graph, orientation="h", texttemplate ="%{label}: %{text} <br>(%{percent})", hovertemplate="%{label}: %{text}")])
 
-mapfig = go.Figure(data=[go.Scattergeo(lon=[list_by_geo[0]["position"][0]], lat=[list_by_geo[0]["position"][1]], )])
+week_sleep_fig = px.bar(weekly_sleep, x=weekly_sleep.weekday, y=weekly_sleep.duration, color=weekly_sleep.duration)
+
+sleep_calandar_fig = Calendar_heatmap.display_year(sleep_calendar, year)
+
+
+
+mapfig = go.Figure(data=[go.Scattergeo(lon=[list_by_geo[0]["position"][0]], lat=[list_by_geo[0]["position"][1]] )])
+
 mapfig.update_layout(
         title_text = 'Activities by position',
         showlegend = True,
@@ -126,11 +219,13 @@ mapfig.update_layout(
 )
 
 
+
+
 #DASH
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP],suppress_callback_exceptions=True)
 
 
 # the style arguments for the sidebar. We use position:fixed and a fixed width
@@ -164,7 +259,7 @@ sidebar = html.Div(
             [
                 dbc.NavLink("Home", href="/", active="exact"),
                 dbc.NavLink("Sleep", href="/page-1", active="exact"),
-                dbc.NavLink("Page 2", href="/page-2", active="exact"),
+                dbc.NavLink("Work", href="/page-2", active="exact"),
             ],
             vertical=True,
             pills=True,
@@ -206,14 +301,77 @@ dbc.Row([
 	style={"height":1200}
 	)]),
 
-	], style=CONTENT_STYLE)
+	])
 
 	]
 )
     elif pathname == "/page-1":
-        return html.P("This is the content of page 1. Yay!")
+        return dbc.Container(
+
+	[html.H1("Sleep data"),
+        html.Hr(),
+
+
+dbc.Row([
+
+
+	dbc.Col(dcc.Graph(
+		id='Sleep bars',
+		figure=week_sleep_fig))
+]
+
+	),
+
+	 html.H3("Yearly Sleep data"),
+	 html.Hr(),
+	 dcc.Dropdown(
+		 id="year_input",
+		 options=[
+			 {"label": col, "value": col} for col in full_sleep_calendar_dataframe.columns
+		 ],
+		 value=datetime.datetime.now().year,
+
+	 ),
+	 dbc.Row([
+
+		 dbc.Col([dcc.Graph(
+			 id='Sleep Calaendar'
+		 )]),
+
+
+	 ])
+
+	 ]
+)
     elif pathname == "/page-2":
-        return html.P("Oh cool, this is page 2!")
+        return dbc.Container(
+
+	[html.H1("Work data"),
+        html.Hr(),
+
+
+
+	 html.H3("Work heatmap"),
+	 html.Hr(),
+	 dcc.Dropdown(
+		 id="year_input",
+		 options=[
+			 {"label": col, "value": col} for col in full_sleep_calendar_dataframe.columns
+		 ],
+		 value=datetime.datetime.now().year,
+
+	 ),
+	 dbc.Row([
+
+		 dbc.Col([dcc.Graph(
+			 id='Sleep Calaendar'
+		 )]),
+
+
+	 ])
+
+	 ]
+)
     # If the user tries to reach a different page, return a 404 message
     return dbc.Jumbotron(
         [
@@ -222,5 +380,17 @@ dbc.Row([
             html.P(f"The pathname {pathname} was not recognised..."),
         ]
     )
+
+
+@app.callback(
+    Output(component_id='Sleep Calaendar', component_property='figure'),
+    Input(component_id='year_input', component_property='value')
+)
+def make_sleep_heatmap_graph(year):
+	print(year)
+	sleep_calendar,full_sleep_calendar_dataframe = make_year_sleep_calendar(year)
+
+	fig = Calendar_heatmap.display_year(sleep_calendar, year)
+	return fig
 
 app.run_server(debug=True, use_reloader=False)

@@ -16,210 +16,234 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 import Calendar_heatmap
+import logging
 
 language = locale.getdefaultlocale()
 
 locale.setlocale(locale.LC_ALL, language[0])
 humanize.activate(language[0])
-# GET AND FORMAT DATA
-data = []
-with open(r"C:\Users\Adrien\Dropbox\time-tracker.txt", mode="r", encoding="utf8") as file:
-	file_content = file.read()
 
-for line in file_content.split('\n'):
-	result = line.split(" - ")
-	data.append({"time": result[0], "position":result[1], "Activity":result[2]})
+logging.basicConfig(filename='Time-Tracker-Logging.log', level=logging.DEBUG, format='%(asctime)s %(name)-12s: %(levelname)-8s %(funcName)-4s (line %(lineno)d) : %(message)s')
 
-# ADD DURATION
-
-for i, (v, w) in enumerate(zip(data[:-1], data[1:])):
-	duration = arrow.get(w["time"])-arrow.get(v["time"])
-	data[i]["duration"]= duration
-
-# print("Data : ", data)
-
-pprint(data)
-#GET ACTIVITIES
-
-activities = []
-
-for datapoint in data:
-	if datapoint["Activity"] not in activities:
-		activities.append(datapoint["Activity"])
-
-print("activities : ", activities)
-
-# ADD DURATION BY ACTIVITIES
-
-time_by_activities = []
-
-sorted_data = sorted(data, key=lambda k: k['Activity'])
-
-for activity in activities:
-	total_time = datetime.timedelta(0)
-	for datapoint in sorted_data:
-		if activity in datapoint["Activity"]:
-			if "duration" in datapoint:
-				total_time += datapoint["duration"]
-	time_by_activities.append([activity, total_time])
-
-print("time by activities : ", time_by_activities)
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(funcName)-4s (line %(lineno)d) : %(message)s')
+console.setFormatter(formatter)
+logging.getLogger('').addHandler(console)
 
 
-# MAKE GEO LIST
+class full_data():
 
-geopoints = []
+	def __init__(self):
+		data = []
+		with open(r"C:\Users\Adrien\Dropbox\time-tracker.txt", mode="r", encoding="utf8") as file:
+			file_content = file.read()
 
-for datapoint in data:
+		for line in file_content.split('\n'):
+			result = line.split(" - ")
+			data.append({"time": result[0], "position": result[1], "Activity": result[2]})
 
-	if datapoint["position"] not in geopoints:
-		position = datapoint["position"].split("/")
-		approx_position = []
-		for chiffre in position:
-			approx_position.append(round(float(chiffre), 3))
-		if approx_position not in geopoints:
-			geopoints.append(approx_position)
+		# ADD DURATION
 
-print("Geopoints : ", geopoints)
+		for i, (v, w) in enumerate(zip(data[:-1], data[1:])):
+			duration = arrow.get(w["time"]) - arrow.get(v["time"])
+			data[i]["duration"] = duration
 
+		self.data = data
 
-list_by_geo = []
-time_by_activities = []
-for geopoint in geopoints:
-	list_by_geo.append({"position":geopoint})
+	def raw(self):
+		return self.data
 
-	for activity in activities:
-		total_time = datetime.timedelta(0)
-		for datapoint in sorted_data:
-			if activity in datapoint["Activity"]:
-				if str(geopoint[0]) in str(round(float(datapoint["position"].split("/")[0]),3)):
+	def activities(self):
+
+		activities = []
+
+		for datapoint in self.data:
+			if datapoint["Activity"] not in activities:
+				activities.append(datapoint["Activity"])
+		return activities
+
+	def time_by_activities(self):
+
+		time_by_activities = []
+
+		sorted_data = sorted(self.data, key=lambda k: k['Activity'])
+
+		for activity in self.activities():
+			total_time = datetime.timedelta(0)
+			for datapoint in sorted_data:
+				if activity in datapoint["Activity"]:
 					if "duration" in datapoint:
 						total_time += datapoint["duration"]
-		time_by_activities.append([activity, total_time])
-		for time in time_by_activities:
-			for position in list_by_geo:
-				if str(geopoint) in str(position["position"]):
-					if total_time.total_seconds() != 0.0:
-						position[activity] = total_time.total_seconds()
+			time_by_activities.append([activity, total_time])
+
+		return time_by_activities
+
+	def geopoints(self):
+
+		geopoints = []
+
+		for datapoint in self.data:
+
+			if datapoint["position"] not in geopoints:
+				position = datapoint["position"].split("/")
+				approx_position = []
+				for chiffre in position:
+					approx_position.append(round(float(chiffre), 3))
+				if approx_position not in geopoints:
+					geopoints.append(approx_position)
+		return geopoints
+
+	def list_by_geo(self):
+		sorted_data = sorted(self.data, key=lambda k: k['Activity'])
+
+		list_by_geo = []
+		time_by_activities = []
+		for geopoint in self.geopoints():
+			list_by_geo.append({"position": geopoint})
+
+			for activity in self.activities():
+				total_time = datetime.timedelta(0)
+				for datapoint in sorted_data:
+					if activity in datapoint["Activity"]:
+						if str(geopoint[0]) in str(round(float(datapoint["position"].split("/")[0]), 3)):
+							if "duration" in datapoint:
+								total_time += datapoint["duration"]
+				time_by_activities.append([activity, total_time])
+				for time in time_by_activities:
+					for position in list_by_geo:
+						if str(geopoint) in str(position["position"]):
+							if total_time.total_seconds() != 0.0:
+								position[activity] = total_time.total_seconds()
+		return list_by_geo
+
+	def time_data_by_date(self, activity):
+
+		time_data = []
+
+		for datapoint in self.data:
+			if datapoint["Activity"] == activity:
+				date = arrow.get(datapoint["time"]).date()
+				if "duration" in datapoint:
+					time_data.append({"date": date, "duration": datapoint["duration"]})
+
+		for i, (v, w) in enumerate(zip(time_data[:-1], time_data[1:])):  # Additionne les deux qui tombent à la même date
+			if v["date"] == w["date"]:
+				v["duration"] = w["duration"] + v["duration"]
+				time_data.remove(w)
+
+		return time_data
+
+	def time_data_by_weekday(self, activity):
+
+		weekly_sleep = []
+		activity_data = self.time_data_by_date(activity)
+
+		for datapoint in activity_data:
+			weekday = calendar.day_name[arrow.get(datapoint["date"]).weekday()]
+			duration_in_hours = datapoint["duration"].seconds // 3600
+			weekly_sleep.append({"weekday": weekday, "duration": duration_in_hours})
+
+		for i, (v, w) in enumerate(zip(weekly_sleep[:-1], weekly_sleep[1:])):  # Additionne les deux qui tombent à la même date
+			if v["weekday"] == w["weekday"]:
+				v["duration"] = w["duration"] + v["duration"]
+				activity_data.remove(w)
+
+		# print("Weekly sleep", weekly_sleep)
+
+		sleep_duration_weekly = []
+
+		for days in weekly_sleep:
+			duration = days["duration"]
+			sleep_duration_weekly.append(duration)
+
+		weekly_sleep = pd.DataFrame(weekly_sleep)
+		return weekly_sleep
+
+	def year_span(self):
+		year_span = []
+		for datapoint in self.data:
+			year = arrow.get(datapoint["time"]).year
+			year_span.append(year)
+
+		year_span = list(set(year_span))
+
+		return year_span
+
+	def full_sleep_calendar_dataframe(self, activity):
+		full_sleep_calendar = []
+		full_sleep_calendar_dataframe = pd.DataFrame(full_sleep_calendar)
+		for year in self.year_span():
+			year_dataframe = pd.DataFrame([])
+			start = datetime.datetime(year, 1, 1)
+			end = datetime.datetime(year, 12, 31)
+
+			if calendar.isleap(year):
+				sleep_calendar = np.full((366,), fill_value=np.inf)
+			else:
+				sleep_calendar = np.full((365,), fill_value=np.inf)
+
+			for datapoint in self.time_data_by_date(activity):
+				for i, days in enumerate(pd.date_range(start, end)):
+
+					if datapoint["date"] == days:
+						np.put(sleep_calendar, i, int(datapoint["duration"].seconds))
+					else:
+						if sleep_calendar[i] == np.inf:
+							np.put(sleep_calendar, i, 0)
+			year_dataframe[year] = sleep_calendar
+
+			full_sleep_calendar_dataframe = pd.concat([full_sleep_calendar_dataframe, year_dataframe], axis=1)
+
+		return full_sleep_calendar_dataframe
+
+	def year_activity_calendar(self, activity, year_arg):
+		try:
+			year_activity_calendar = self.full_sleep_calendar_dataframe(activity)[year_arg]
+		except Exception as e:
+			logging.error("Year out of span for data")
+			year_activity_calendar = []
+		return year_activity_calendar
 
 
+class make_graph():
+	def global_geo_map(self):
+		mapfig = go.Figure(data=[go.Scattergeo(lon=[full_data().list_by_geo()[0]["position"][0]], lat=[full_data().list_by_geo()[0]["position"][1]])])
 
-print("list by geo : " , list_by_geo)
-# MAKE THE LISTS FOR GRAPHS
-activity_for_graph = [x for x, v in time_by_activities]
-duration_for_graph = [v.total_seconds() for x, v in time_by_activities]
-humanized_duration_for_graph = [humanize.naturaldelta(v.total_seconds()) for x, v in time_by_activities]
-print("humanized_duration_for_graph : ", humanized_duration_for_graph)
+		mapfig.update_layout(
+			title_text='Activities by position',
+			showlegend=True,
+			geo=dict(
+				scope='europe',
+				landcolor='rgb(217, 217, 217)',
+			),
 
+		)
+		return mapfig
 
-# MAKE SLEEP DATA
+	def global_piefig(self):
+		activity_for_graph = [x for x, v in full_data().time_by_activities()]
+		duration_for_graph = [v.total_seconds() for x, v in full_data().time_by_activities()]
+		humanized_duration_for_graph = [humanize.naturaldelta(v.total_seconds()) for x, v in full_data().time_by_activities()]
+		piefig = go.Figure(data=[go.Pie(labels=activity_for_graph, values=duration_for_graph, text=humanized_duration_for_graph, hole=.3, texttemplate="%{label}: %{text} <br>(%{percent})", hovertemplate="%{label}: %{text} <br>(%{percent})")])
+		return piefig
 
-sleep_data = []
+	def global_barfig(self):
+		activity_for_graph = [x for x, v in full_data().time_by_activities()]
+		duration_for_graph = [v.total_seconds() for x, v in full_data().time_by_activities()]
+		humanized_duration_for_graph = [humanize.naturaldelta(v.total_seconds()) for x, v in full_data().time_by_activities()]
+		barfig = go.Figure(data=[go.Bar(y=activity_for_graph, x=duration_for_graph, text=humanized_duration_for_graph, orientation="h", texttemplate="%{label}: %{text} <br>(%{percent})", hovertemplate="%{label}: %{text}")])
+		return barfig
 
-for datapoint in data:
-	if datapoint["Activity"] == "Dormir":
-		date = arrow.get(datapoint["time"]).date()
-		sleep_data.append({"date":date, "duration":datapoint["duration"]})
+	def week_activity_barfig(self, activity):
+		time_data_by_weekday = full_data().time_data_by_weekday(activity)
 
-print("Sleep data", sleep_data)
+		week_activity_barfig = px.bar(time_data_by_weekday, x=time_data_by_weekday.weekday, y=time_data_by_weekday.duration, color=time_data_by_weekday.duration)
+		return week_activity_barfig
 
-for i, (v, w) in enumerate(zip(sleep_data[:-1], sleep_data[1:])): # Additionne les deux qui tombent à la même date
-	if v["date"] == w["date"]:
-		v["duration"] = w["duration"] + v["duration"]
-		sleep_data.remove(w)
-
-print("Cleaned Sleep data", sleep_data)
-
-weekly_sleep = []
-
-for datapoint in sleep_data:
-	weekday = calendar.day_name[arrow.get(datapoint["date"]).weekday()]
-	duration_in_hours = datapoint["duration"].seconds//3600
-	weekly_sleep.append({"weekday": weekday, "duration": duration_in_hours})
-
-for i, (v, w) in enumerate(zip(weekly_sleep[:-1], weekly_sleep[1:])): # Additionne les deux qui tombent à la même date
-	if v["weekday"] == w["weekday"]:
-		v["duration"] = w["duration"] + v["duration"]
-		sleep_data.remove(w)
-
-print("Weekly sleep", weekly_sleep)
-
-
-sleep_duration_weekly = []
-
-for days in weekly_sleep:
-	duration = days["duration"]
-	sleep_duration_weekly.append(duration)
-
-weekly_sleep = pd.DataFrame(weekly_sleep)
-
-
-
-sleep_year_list = []
-for datapoint in sleep_data:
-	year = datapoint["date"].year
-	sleep_year_list.append(year)
-
-sleep_year_list= list(set(sleep_year_list))
-
-def make_year_sleep_calendar(year_arg):
-	full_sleep_calendar = []
-	full_sleep_calendar_dataframe = pd.DataFrame(full_sleep_calendar)
-	for year in sleep_year_list:
-		year_dataframe = pd.DataFrame([])
-		start = datetime.datetime(year, 1, 1)
-		end = datetime.datetime(year, 12, 31)
-
-		if calendar.isleap(year):
-			sleep_calendar = np.full((366,), fill_value=np.inf)
-		else:
-			sleep_calendar = np.full((365,),  fill_value=np.inf)
-
-		for datapoint in sleep_data:
-			for i, days in enumerate(pd.date_range(start, end)):
-
-				if datapoint["date"] == days:
-					np.put(sleep_calendar, i, int(datapoint["duration"].seconds))
-				else:
-					if sleep_calendar[i] == np.inf:
-						np.put(sleep_calendar, i, 0)
-		year_dataframe[year] = sleep_calendar
-
-		full_sleep_calendar_dataframe = pd.concat([full_sleep_calendar_dataframe, year_dataframe], axis=1)
-
-	year_sleep_calendar = full_sleep_calendar_dataframe[year_arg]
-
-	return year_sleep_calendar, full_sleep_calendar_dataframe
-
-sleep_calendar, full_sleep_calendar_dataframe = make_year_sleep_calendar(datetime.datetime.now().year)
-#GRAPHING
-
-piefig = go.Figure(data=[go.Pie(labels=activity_for_graph, values=duration_for_graph, text= humanized_duration_for_graph, hole=.3, texttemplate ="%{label}: %{text} <br>(%{percent})", hovertemplate="%{label}: %{text} <br>(%{percent})")])
-
-
-barfig = go.Figure(data=[go.Bar(y=activity_for_graph, x=duration_for_graph, text= humanized_duration_for_graph, orientation="h", texttemplate ="%{label}: %{text} <br>(%{percent})", hovertemplate="%{label}: %{text}")])
-
-week_sleep_fig = px.bar(weekly_sleep, x=weekly_sleep.weekday, y=weekly_sleep.duration, color=weekly_sleep.duration)
-
-sleep_calandar_fig = Calendar_heatmap.display_year(sleep_calendar, year)
-
-
-
-mapfig = go.Figure(data=[go.Scattergeo(lon=[list_by_geo[0]["position"][0]], lat=[list_by_geo[0]["position"][1]] )])
-
-mapfig.update_layout(
-        title_text = 'Activities by position',
-        showlegend = True,
-	geo=dict(
-		scope='europe',
-		landcolor='rgb(217, 217, 217)',
-	),
-
-
-)
-
-
-
+	def yearly_heatmap(self, activity, year):
+		yearly_heatmap = Calendar_heatmap.display_year(full_data().year_activity_calendar(activity, year), year=year, activity=activity)
+		return yearly_heatmap
 
 #DASH
 
@@ -285,11 +309,11 @@ dbc.Row([
 
 	dbc.Col(dcc.Graph(
 		id='Time pie',
-		figure=piefig)),
+		figure=make_graph().global_piefig())),
 
 	dbc.Col(dcc.Graph(
 		id='Time bar',
-		figure=barfig))
+		figure=make_graph().global_barfig()))
 ]
 
 	),
@@ -297,7 +321,7 @@ dbc.Row([
 dbc.Row([
 	dbc.Col([dcc.Graph(
 		id='Map',
-		figure=mapfig,
+		figure=make_graph().global_geo_map(),
 	style={"height":1200}
 	)]),
 
@@ -317,7 +341,7 @@ dbc.Row([
 
 	dbc.Col(dcc.Graph(
 		id='Sleep bars',
-		figure=week_sleep_fig))
+		figure=make_graph().week_activity_barfig("Dormir")))
 ]
 
 	),
@@ -327,7 +351,7 @@ dbc.Row([
 	 dcc.Dropdown(
 		 id="year_input",
 		 options=[
-			 {"label": col, "value": col} for col in full_sleep_calendar_dataframe.columns
+			 {"label": col, "value": col} for col in full_data().full_sleep_calendar_dataframe("Dormir").columns
 		 ],
 		 value=datetime.datetime.now().year,
 
@@ -356,7 +380,7 @@ dbc.Row([
 	 dcc.Dropdown(
 		 id="year_input",
 		 options=[
-			 {"label": col, "value": col} for col in full_sleep_calendar_dataframe.columns
+			 {"label": col, "value": col} for col in full_data().full_sleep_calendar_dataframe("Travail").columns
 		 ],
 		 value=datetime.datetime.now().year,
 
@@ -386,11 +410,8 @@ dbc.Row([
     Output(component_id='Sleep Calaendar', component_property='figure'),
     Input(component_id='year_input', component_property='value')
 )
-def make_sleep_heatmap_graph(year):
-	print(year)
-	sleep_calendar,full_sleep_calendar_dataframe = make_year_sleep_calendar(year)
-
-	fig = Calendar_heatmap.display_year(sleep_calendar, year)
+def make_heatmap_graph(year):
+	fig = make_graph().yearly_heatmap("Dormir", year)
 	return fig
 
 app.run_server(debug=True, use_reloader=False)

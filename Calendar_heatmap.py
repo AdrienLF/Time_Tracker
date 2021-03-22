@@ -26,7 +26,8 @@ def display_year(z,
 				 year: int = None,
 				 month_lines: bool = True,
 				 fig=None,
-				 row: int = None):
+				 row: int = None,
+				 activity : str = None):
 	if year is None:
 		year = datetime.datetime.now().year
 
@@ -105,7 +106,7 @@ def display_year(z,
 					]
 
 	layout = go.Layout(
-		title='Sleep pattern',
+		title=f'{activity} heatmap for {year}',
 		height=250,
 		yaxis=dict(
 			showline=False, showgrid=False, zeroline=False,

@@ -82,7 +82,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![Product Name Screen Shot][product-screenshot]](https://github.com/AdrienLF/Time_Tracker/blob/master/Time-Tracker_preview.jpg)
+![product-screenshot](Screenshots/Time-Tracker_preview.jpg)
 
 The iPhone's automation opens up many interesting workflows, especially since it can scan NFC chips. They are cheap, small, and are very easy to program. Many people have their phone with them all the time, so it seems like a natural ally to your time tracking obsession.
 
@@ -126,6 +126,9 @@ Current Date (all ISO 8601) - Longitude/Latitude - Name of your activity
 ```
 
 Don't forget the spaces around the "-". You can add as many automations as you like, and name them as you like. 
+
+If you need more info on how to create shortcuts, please check the [Shorcuts Tutorial](Shorcuts_Tutorial.md).
+
 
 You also don't need NFCs for all of them. It could trigger when you leave home, receive e-mails, etc.
 

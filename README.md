@@ -131,7 +131,7 @@ You also don't need NFCs for all of them. It could trigger when you leave home, 
 
 Then, replace the path to your file in the Main.py file. I use dropbox, you can use any service that syncs your file from your phone to your computer. 
 
-![product-screenshot]](https://github.com/AdrienLF/Time_Tracker/blob/master/Screenshots/Change%20path.png?raw=true)
+![product-screenshot](./Screenshots/Change%20path.png?raw=true)
 
 Then, run Main.py and open [http://127.0.0.1:8050/](http://127.0.0.1:8050/) on your browser.
 

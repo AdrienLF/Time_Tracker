@@ -36,7 +36,7 @@ class full_data():
 
 	def __init__(self):
 		data = []
-		with open(r"C:\Users\Adrien\Dropbox\time-tracker.txt", mode="r", encoding="utf8") as file:
+		with open(r"time-tracker.txt", mode="r", encoding="utf8") as file:
 			file_content = file.read()
 
 		for line in file_content.split('\n'):

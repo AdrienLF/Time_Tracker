@@ -127,7 +127,7 @@ Current Date (all ISO 8601) - Longitude/Latitude - Name of your activity
 
 Don't forget the spaces around the "-". You can add as many automations as you like, and name them as you like. 
 
-If you need more info on how to create shortcuts, please check the [Shorcuts Tutorial](Shorcuts_Tutorial.md).
+If you need more info on how to create shortcuts, please check the [Shorcuts Tutorial](Shortcuts_Tutorial.md).
 
 
 You also don't need NFCs for all of them. It could trigger when you leave home, receive e-mails, etc.

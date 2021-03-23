@@ -249,7 +249,7 @@ class make_graph():
 			title_text='Activities by position',
 			showlegend=True,
 			geo=dict(
-				scope='europe',
+
 				landcolor='rgb(217, 217, 217)',
 			),
 

@@ -54,6 +54,35 @@ class full_data():
 	def raw(self):
 		return self.data
 
+	def to_dataframe(self):
+
+		data = self.data
+		for item in data:
+			time = item["time"]
+			arrow_time = arrow.get(time).datetime
+
+			item["time"] = arrow_time
+
+		to_remove = []
+		for [v, w] in zip(data, data[1:]):
+			if v["Activity"] == w["Activity"]:
+				to_remove.append(w)
+		for x in to_remove:
+			data.remove(x)
+
+		dataframe = pd.DataFrame(data)
+		dataframe["endtime"] = dataframe["time"] + dataframe["duration"]
+		return dataframe
+
+	def make_list_of_days(self):
+
+		list_of_days = []
+		dataframe = self.to_dataframe()
+		for idc, day in dataframe.groupby(dataframe.time.dt.date):
+			calendar_day = day.iloc[0]["time"].date()
+			list_of_days.append(calendar_day)
+		return list_of_days
+
 	def activities(self):
 
 		activities = []
@@ -78,6 +107,12 @@ class full_data():
 			time_by_activities.append([activity, total_time])
 
 		return time_by_activities
+
+	def datetime_to_hours(self):
+		df = self.to_dataframe()
+		df["hour_start"] = df["time"].dt.time
+		df["hour_end"] = df["endtime"].dt.time
+		return df
 
 	def geopoints(self):
 
@@ -230,9 +265,10 @@ class make_graph():
 
 	def global_barfig(self):
 		activity_for_graph = [x for x, v in full_data().time_by_activities()]
-		duration_for_graph = [v.total_seconds() for x, v in full_data().time_by_activities()]
+		duration_for_graph = [v.seconds /3600 for x, v in full_data().time_by_activities()]
 		humanized_duration_for_graph = [humanize.naturaldelta(v.total_seconds()) for x, v in full_data().time_by_activities()]
 		barfig = go.Figure(data=[go.Bar(y=activity_for_graph, x=duration_for_graph, text=humanized_duration_for_graph, orientation="h", texttemplate="%{label}: %{text} <br>(%{percent})", hovertemplate="%{label}: %{text}")])
+
 		return barfig
 
 	def week_activity_barfig(self, activity):
@@ -272,6 +308,11 @@ CONTENT_STYLE = {
 }
 
 
+sidebar_list = [dbc.NavLink("Home", href="/", active="exact")]
+for activity in full_data().activities():
+	sidebar_list.append(dbc.NavLink(activity, href=str("/" + activity), active="exact"))
+
+
 sidebar = html.Div(
     [
         html.H2("Time Tracker", className="display-4"),
@@ -280,11 +321,8 @@ sidebar = html.Div(
             "Welcome, here's your days at a glance.", className="lead"
         ),
         dbc.Nav(
-            [
-                dbc.NavLink("Home", href="/", active="exact"),
-                dbc.NavLink("Sleep", href="/page-1", active="exact"),
-                dbc.NavLink("Work", href="/page-2", active="exact"),
-            ],
+
+            sidebar_list,
             vertical=True,
             pills=True,
         ),
@@ -296,10 +334,51 @@ content = html.Div(id="page-content", style=CONTENT_STYLE)
 
 app.layout = html.Div([dcc.Location(id="url"), sidebar, content])
 
+
+def render_activity_page(activity):
+	container = dbc.Container(
+
+		[html.H1(f"{activity} data"),
+		 html.Hr(),
+		 # Hidden div inside the app that stores the intermediate value
+		 dcc.Input(id="activity", value=activity, style={"display" : "none"})
+			,
+
+		 dbc.Row([
+
+			 dbc.Col(dcc.Graph(
+				 id='Activity bars',
+				 figure=make_graph().week_activity_barfig(activity)))
+		 ]
+
+		 ),
+
+		 html.H3(f"Yearly {activity} data"),
+		 html.Hr(),
+		 dcc.Dropdown(
+			 id="year_input",
+			 options=[
+				 {"label": col, "value": col} for col in full_data().full_sleep_calendar_dataframe(activity).columns
+			 ],
+			 value=datetime.datetime.now().year,
+
+		 ),
+		 dbc.Row([
+
+			 dbc.Col([dcc.Graph(
+				 id='Heatmap'
+			 )]),
+
+		 ])
+
+		 ]
+	)
+	return container
+
 @app.callback(Output("page-content", "children"), [Input("url", "pathname")])
 def render_page_content(pathname):
-    if pathname == "/":
-        return dbc.Container(
+	if pathname == "/":
+		return dbc.Container(
 
 	[html.H1("Total data"),
         html.Hr(),
@@ -329,75 +408,12 @@ dbc.Row([
 
 	]
 )
-    elif pathname == "/page-1":
-        return dbc.Container(
-
-	[html.H1("Sleep data"),
-        html.Hr(),
-
-
-dbc.Row([
-
-
-	dbc.Col(dcc.Graph(
-		id='Sleep bars',
-		figure=make_graph().week_activity_barfig("Dormir")))
-]
-
-	),
-
-	 html.H3("Yearly Sleep data"),
-	 html.Hr(),
-	 dcc.Dropdown(
-		 id="year_input",
-		 options=[
-			 {"label": col, "value": col} for col in full_data().full_sleep_calendar_dataframe("Dormir").columns
-		 ],
-		 value=datetime.datetime.now().year,
-
-	 ),
-	 dbc.Row([
-
-		 dbc.Col([dcc.Graph(
-			 id='Sleep Calaendar'
-		 )]),
-
-
-	 ])
-
-	 ]
-)
-    elif pathname == "/page-2":
-        return dbc.Container(
-
-	[html.H1("Work data"),
-        html.Hr(),
-
-
-
-	 html.H3("Work heatmap"),
-	 html.Hr(),
-	 dcc.Dropdown(
-		 id="year_input",
-		 options=[
-			 {"label": col, "value": col} for col in full_data().full_sleep_calendar_dataframe("Travail").columns
-		 ],
-		 value=datetime.datetime.now().year,
-
-	 ),
-	 dbc.Row([
-
-		 dbc.Col([dcc.Graph(
-			 id='Sleep Calaendar'
-		 )]),
-
-
-	 ])
-
-	 ]
-)
-    # If the user tries to reach a different page, return a 404 message
-    return dbc.Jumbotron(
+	else:
+		for activity in full_data().activities():
+			if pathname == "/" + activity:
+				return render_activity_page(activity)
+	# If the user tries to reach a different page, return a 404 message
+	return dbc.Jumbotron(
         [
             html.H1("404: Not found", className="text-danger"),
             html.Hr(),
@@ -407,11 +423,13 @@ dbc.Row([
 
 
 @app.callback(
-    Output(component_id='Sleep Calaendar', component_property='figure'),
-    Input(component_id='year_input', component_property='value')
+    Output(component_id='Heatmap', component_property='figure'),
+    Input(component_id='year_input', component_property='value'),
+	Input(component_id='activity', component_property='value')
+
 )
-def make_heatmap_graph(year):
-	fig = make_graph().yearly_heatmap("Dormir", year)
+def make_heatmap_graph(year, activity):
+	fig = make_graph().yearly_heatmap(activity, year)
 	return fig
 
-app.run_server(debug=True, use_reloader=False)
+app.run_server(debug=False, use_reloader=False)

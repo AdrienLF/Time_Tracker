@@ -32,16 +32,22 @@ console.setFormatter(formatter)
 logging.getLogger('').addHandler(console)
 
 
+file_path = r"Q:\time-tracker.txt"
+
+
 class full_data():
 
 	def __init__(self):
 		data = []
-		with open(r"time-tracker.txt", mode="r", encoding="utf8") as file:
+		with open(file_path, mode="r", encoding="utf8") as file:
 			file_content = file.read()
 
 		for line in file_content.split('\n'):
 			result = line.split(" - ")
-			data.append({"time": result[0], "position": result[1], "Activity": result[2]})
+			if len(result) > 3:
+				data.append({"time": result[0], "position": result[1], "Activity": result[2], "Program": result[3], "Window Name": str(" ".join(result[4:]))})
+			else:
+				data.append({"time": result[0], "position": result[1], "Activity": result[2]})
 
 		# ADD DURATION
 
@@ -50,6 +56,8 @@ class full_data():
 			data[i]["duration"] = duration
 
 		self.data = data
+
+	# pprint(data)
 
 	def raw(self):
 		return self.data
@@ -66,12 +74,14 @@ class full_data():
 		to_remove = []
 		for [v, w] in zip(data, data[1:]):
 			if v["Activity"] == w["Activity"]:
-				to_remove.append(w)
+				if v["Activity"] != "Computer":
+					to_remove.append(w)
 		for x in to_remove:
 			data.remove(x)
 
 		dataframe = pd.DataFrame(data)
 		dataframe["endtime"] = dataframe["time"] + dataframe["duration"]
+
 		return dataframe
 
 	def make_list_of_days(self):
@@ -240,6 +250,15 @@ class full_data():
 			year_activity_calendar = []
 		return year_activity_calendar
 
+	def time_per_computer_activity(self):
+		dataframe = full_data().to_dataframe()
+		computer_dataframe = dataframe[dataframe["Activity"] == "Computer"]
+		time_per_computer_activity = computer_dataframe.groupby(["Program"])[["duration"]].agg("sum").reset_index().sort_values("duration")
+		time_per_computer_activity["duration"] = time_per_computer_activity["duration"].dt.seconds
+		print(computer_dataframe.columns)
+		print(time_per_computer_activity.to_string())
+		print(time_per_computer_activity.dtypes)
+		return time_per_computer_activity
 
 class make_graph():
 	def global_geo_map(self):
@@ -267,7 +286,7 @@ class make_graph():
 		activity_for_graph = [x for x, v in full_data().time_by_activities()]
 		duration_for_graph = [v.seconds /3600 for x, v in full_data().time_by_activities()]
 		humanized_duration_for_graph = [humanize.naturaldelta(v.total_seconds()) for x, v in full_data().time_by_activities()]
-		barfig = go.Figure(data=[go.Bar(y=activity_for_graph, x=duration_for_graph, text=humanized_duration_for_graph, orientation="h", texttemplate="%{label}: %{text} <br>(%{percent})", hovertemplate="%{label}: %{text}")])
+		barfig = go.Figure(data=[go.Bar(y=activity_for_graph, x=duration_for_graph, text=humanized_duration_for_graph, orientation="h", hovertemplate="%{label}: %{text}")])
 
 		return barfig
 
@@ -281,6 +300,16 @@ class make_graph():
 		yearly_heatmap = Calendar_heatmap.display_year(full_data().year_activity_calendar(activity, year), year=year, activity=activity)
 		return yearly_heatmap
 
+	def computer_activities_bar_chart(self):
+		time_per_computer_activity = full_data().time_per_computer_activity()
+		activity_for_graph = time_per_computer_activity["Program"].to_list()
+		duration_for_graph = time_per_computer_activity["duration"].to_list()
+		humanized_duration_for_graph = [humanize.naturaldelta(x) for x in time_per_computer_activity["duration"].to_list()]
+		barfig = go.Figure(data=[go.Bar(x=activity_for_graph, y=duration_for_graph, text=humanized_duration_for_graph, textposition="auto", texttemplate="%{label}: %{text}", hovertemplate="%{label}: %{text}")])
+
+		return barfig
+
+print(full_data().to_dataframe().to_string())
 #DASH
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
